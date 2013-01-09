@@ -1,0 +1,86 @@
+<?php
+
+function mess_plugin_invoke($remote, $service_key, $user_key, $user_secret) {
+  module_load_include('inc', 'twoway', 'twoway.invoke');
+  $service = new TwoWayService('service_controller_twoway', 'managed_service_request', $remote);
+  try {
+    return $service->invoke(array(
+      'service' => $service_key,
+      'user' => $user_key,
+      'secret' => $user_secret,
+    ));
+  } catch (TwoWayException $e) {
+    return array(
+      'error' => 1,
+      'messages' => array('Could not execute two-way request: ' . $e->getMessage()),
+    );
+  }
+}
+
+function mess_plugin_request($settings) {
+  $results = mess_plugin_invoke(
+    $settings['remote_server'],
+    $settings['service_key'],
+    $settings['user_key'],
+    $settings['user_secret']
+  );
+  if ($results['error']) {
+    drupal_set_message(t('Could not complete MESS request. More information about this message has been logged.'));
+    watchdog('mess_plugin', 'Error during MESS request: @errors', array(
+      '@errors' => implode("\r\n", $results['messages'])
+    ), WATCHDOG_ERROR);
+    return NULL;
+  } else {
+    return $results['result'];
+  }
+}
+
+function mess_plugin_settings_alter_form(&$form, &$form_state, $settings = array()) {
+  $settings += array(
+    'remote_server' => '',
+    'service_key' => '',
+    'user_key' => '',
+    'user_secret' => '',
+  );
+  $form += array(
+    'mess_connection' => array(
+      '#type' => 'fieldset',
+      '#title' => t('MESS Connection'),
+      '#collapsible' => TRUE,
+      'remote_server' => array(
+        '#type' => 'select',
+        '#options' => twoway_server_list(),
+        '#default_value' => $settings['remote_server'],
+        '#required' => TRUE,
+        '#title' => t('Remote Server'),
+      ),
+      'service_key' => array(
+        '#type' => 'textfield',
+        '#default_value' => $settings['service_key'],
+        '#required' => TRUE,
+        '#title' => t('Service Key'),
+      ),
+      'user_key' => array(
+        '#type' => 'textfield',
+        '#default_value' => $settings['user_key'],
+        '#required' => TRUE,
+        '#title' => t('User Key'),
+      ),
+      'user_secret' => array(
+        '#type' => 'textfield',
+        '#default_value' => $settings['user_secret'],
+        '#required' => TRUE,
+        '#title' => t('User Secret'),
+      ),
+    ),
+  );
+}
+
+function mess_plugin_settings_build($form, &$form_state) {
+  return array(
+    'remote_server' => $form_state['values']['remote_server'],
+    'service_key' => $form_state['values']['service_key'],
+    'user_key' => $form_state['values']['user_key'],
+    'user_secret' => $form_state['values']['user_secret']
+  );
+}
